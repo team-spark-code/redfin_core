@@ -66,6 +66,7 @@ public class SecurityConfig {
             .formLogin(AbstractHttpConfigurer::disable) // 폼 로그인 방식 비활성화
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/api/signup", "/api/check-email", "/api/check-username", "/api/login").permitAll()
+                .requestMatchers("/api/job-interest", "/api/ai-company", "/api/ai-field").permitAll()
                 .requestMatchers("/", "/signup", "/login", "/static/**", "/js/**", "/css/**").permitAll()
                 .requestMatchers("/members/**", "/profile").hasRole("USER")
                 .anyRequest().authenticated()

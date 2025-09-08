@@ -39,5 +39,27 @@ public class MemberAiService {
         if (member == null) return Optional.empty();
         return memberAiRepository.findByMember(member);
     }
-}
 
+    // 멤버 ID로 AI 기업 정보 저장/수정하는 새 메서드 추가
+    @Transactional
+    public void saveOrUpdateAiCompanyByMemberId(Long memberId, String aiCompany) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("회원이 존재하지 않습니다."));
+        Optional<MemberAi> existing = memberAiRepository.findByMember(member);
+        if (existing.isPresent()) {
+            MemberAi ai = existing.get();
+            ai.setAiCompany(aiCompany);
+            memberAiRepository.save(ai);
+        } else {
+            MemberAi ai = new MemberAi(member, aiCompany);
+            memberAiRepository.save(ai);
+        }
+    }
+
+    // 멤버 ID로 AI 기업 정보 조회하는 새 메서드 추가
+    public Optional<MemberAi> getAiCompanyByMemberId(Long memberId) {
+        Member member = memberRepository.findById(memberId).orElse(null);
+        if (member == null) return Optional.empty();
+        return memberAiRepository.findByMember(member);
+    }
+}

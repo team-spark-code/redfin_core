@@ -3,6 +3,8 @@ package com.example.demo.controller;
 import com.example.demo.config.CustomAuditorAware;
 import com.example.demo.domain.Member;
 import com.example.demo.dto.MemberForm;
+import com.example.demo.dto.SignupRequest;
+import com.example.demo.dto.LoginRequest;
 import com.example.demo.service.MemberService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -88,7 +90,7 @@ public class ApiMemberController {
                 return ResponseEntity.ok(response);
             } else {
                 response.put("success", false);
-                response.put("message", "이메일 또는 비밀번호가 올바르지 않습니다.");
+                response.put("message", "이메일 또는 비밀번호가 올바르지 ��습니다.");
                 return ResponseEntity.badRequest().body(response);
             }
 
@@ -97,30 +99,5 @@ public class ApiMemberController {
             response.put("message", "로그인 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.badRequest().body(response);
         }
-    }
-
-    // React SignupPage의 폼 데이터를 받기 위한 DTO
-    @Setter
-    @Getter
-    public static class SignupRequest {
-        // Getters and Setters
-        private String email;
-        private String password;
-        private String confirmPassword;
-        private String fullName;
-        private String phoneNumber;
-        private boolean agreeToTerms;
-        private boolean agreeToMarketing;
-
-    }
-
-    // React LoginPage의 폼 데이터를 받기 위한 DTO
-    @Setter
-    @Getter
-    public static class LoginRequest {
-        // Getters and Setters
-        private String email;
-        private String password;
-
     }
 }

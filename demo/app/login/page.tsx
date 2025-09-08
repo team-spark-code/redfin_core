@@ -29,6 +29,13 @@ export default function LoginPage() {
           로그인
         </h1>
 
+        {/* 오류 메시지 */}
+        {state?.error && (
+          <div className="p-4 text-red-700 bg-red-100 border border-red-300 rounded-md">
+            {state.error}
+          </div>
+        )}
+
         <form action={formAction} className="space-y-6">
           <div>
             <label
@@ -64,20 +71,20 @@ export default function LoginPage() {
             />
           </div>
 
-          <div>
-            <SubmitButton />
-          </div>
-
-          {state?.error && (
-            <p className="mt-2 text-sm text-center text-red-600">{state.error}</p>
-          )}
+          <SubmitButton />
         </form>
-        <p className="mt-4 text-sm text-center text-gray-600">
-          계정이 없으신가요?{" "}
-          <Link href="/signup" className="font-medium text-blue-600 hover:underline">
-            회원가입
-          </Link>
-        </p>
+
+        <div className="text-center">
+          <p className="text-sm text-gray-600">
+            계정이 없으신가요?{" "}
+            <Link
+              href="/signup"
+              className="font-medium text-blue-600 hover:text-blue-500"
+            >
+              회원가입하기
+            </Link>
+          </p>
+        </div>
       </div>
     </main>
   );
