@@ -9,8 +9,10 @@ import { ArrowLeft, Eye, EyeOff, Mail, Lock, Github, Chrome } from "lucide-react
 // 사용자 정보 타입 정의
 type User = {
   id: number;
+  memberId: number; // MEMBER_ID 추가
   name: string;
   email: string;
+  username?: string;
 };
 
 interface LoginPageProps {
@@ -62,12 +64,12 @@ export function LoginPage({ onBack, onSignupClick, onLoginSuccess }: LoginPagePr
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:8080/api/login', {
+      // Next.js API 라우트 사용
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           email: formData.email,
           password: formData.password
@@ -75,29 +77,19 @@ export function LoginPage({ onBack, onSignupClick, onLoginSuccess }: LoginPagePr
       });
 
       const result = await response.json();
+      console.log("로그인 응답:", result);
 
-      if (response.ok && result.success) {
+      if (response.ok && result.token && result.user) {
         console.log("로그인 성공:", result);
 
-        // JWT 토큰 저장
-        if (result.token) {
-          sessionStorage.setItem('authToken', result.token);
-          localStorage.setItem('authToken', result.token); // 백업용
+        // AuthContext와 일치하는 키로 토큰 저장
+        localStorage.setItem('auth_token', result.token);
+        localStorage.setItem('auth_user', JSON.stringify(result.user));
 
-          // 로그인 시간 저장 (5분 세션 타임아웃을 위해)
-          const currentTime = new Date().getTime().toString();
-          localStorage.setItem('loginTime', currentTime);
+        console.log("토큰 저장 완료:", result.token.substring(0, 20) + '...');
 
-          console.log("JWT 토큰 및 로그인 시간 저장됨:", result.token);
-        }
-
-        if (result.user) {
-          sessionStorage.setItem('user', JSON.stringify(result.user));
-          // 🔹 부모 컴포넌트에 로그인 성공과 사용자 정보를 알립니다.
-          onLoginSuccess(result.user);
-        } else {
-          setErrors({ general: "로그인에 성공했지만 사용자 정보를 가져오지 못했습니다." });
-        }
+        // 부모 컴포넌트에 로그인 성공과 사용자 정보를 알립니다.
+        onLoginSuccess(result.user);
       } else {
         setErrors({ general: result.message || "로그인에 실패했습니다." });
       }

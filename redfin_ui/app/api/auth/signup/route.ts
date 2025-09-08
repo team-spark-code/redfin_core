@@ -3,8 +3,15 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 // 임시 사용자 데이터베이스 (실제로는 데이터베이스를 사용해야 함)
-const users: Array<{ id: number; email: string; name: string; password: string }> = [];
-let nextUserId = 1;
+const users: Array<{ id: number; email: string; name: string; password: string }> = [
+  {
+    id: 1,
+    email: "test@example.com",
+    name: "Test User",
+    password: "password", // 임시로 평문 비밀번호 사용
+  },
+];
+let nextUserId = 2;
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -29,8 +36,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 비밀번호 암호화
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // 비밀번호 암호화 (임시로 평문 사용)
+    const hashedPassword = password;
 
     // 새 사용자 생성
     const newUser = {

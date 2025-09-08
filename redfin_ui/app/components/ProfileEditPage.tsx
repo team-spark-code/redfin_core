@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { ArrowLeft, Save, User, Mail, Phone, MapPin, Search } from "lucide-react";
 
-// Daum 주소 ���색 API 타입 정의
+// Daum 주소 검색 API 타입 정의
 declare global {
   interface Window {
     daum: any;
@@ -15,11 +15,12 @@ declare global {
 // 사용자 정보 타입 정의
 type User = {
   id: number;
+  memberId?: number; // MEMBER_ID 추가
   name: string;
   email: string;
   phone?: string;
   address?: string;
-  zipCode?: string;
+  zipcode?: string; // zipCode에서 zipcode로 변경
   detailAddress?: string;
   bio?: string;
 };
@@ -35,7 +36,7 @@ export function ProfileEditPage({ user, onBack, onUpdateProfile }: ProfileEditPa
     name: user.name,
     email: user.email,
     phone: user.phone || "",
-    zipCode: user.zipCode || "",
+    zipcode: user.zipcode || "", // zipCode에서 zipcode로 변경
     address: user.address || "",
     detailAddress: user.detailAddress || "",
     bio: user.bio || "",
@@ -61,6 +62,46 @@ export function ProfileEditPage({ user, onBack, onUpdateProfile }: ProfileEditPa
     loadDaumPostcode().catch(err => console.error('Error loading Daum Postcode API:', err));
   }, []);
 
+  // JWT 토큰에서 우편번호 정보 불러오기
+  useEffect(() => {
+    const loadZipcodeFromToken = () => {
+      const token = localStorage.getItem('auth_token') || sessionStorage.getItem('authToken');
+
+      if (!token) return;
+
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length !== 3) return;
+
+        const payload = JSON.parse(atob(tokenParts[1]));
+        console.log('JWT 토큰에서 우편번호 정보 확인:', payload.zipcode);
+
+        // JWT 토큰에 우편번호가 있고 현재 사용자에게 없다면 업데이트
+        if (payload.zipcode && !user.zipcode) {
+          console.log('JWT 토큰에서 우편번호 정보를 사용자 정보에 반영:', payload.zipcode);
+
+          // formData 업데이트
+          setFormData(prev => ({
+            ...prev,
+            zipcode: payload.zipcode
+          }));
+
+          // 사용자 정보 업데이트
+          const updatedUser = {
+            ...user,
+            zipcode: payload.zipcode
+          };
+          onUpdateProfile(updatedUser);
+          localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+        }
+      } catch (error) {
+        console.error('JWT 토큰에서 우편번호 정보 추출 실패:', error);
+      }
+    };
+
+    loadZipcodeFromToken();
+  }, [user, onUpdateProfile]);
+
   // 주소 검색 팝업 열기
   const handleAddressSearch = () => {
     if (!window.daum || !window.daum.Postcode) {
@@ -81,7 +122,7 @@ export function ProfileEditPage({ user, onBack, onUpdateProfile }: ProfileEditPa
           if (data.userSelectedType === 'R' && data.bname !== '' && /[동로가]$/g.test(data.bname)) {
             addr += ` (${data.bname})`;
           }
-          setFormData(prev => ({ ...prev, zipCode: data.zonecode, address: addr }));
+          setFormData(prev => ({ ...prev, zipcode: data.zonecode, address: addr }));
           setIsAddressSearchOpen(false);
         },
         onclose: () => setIsAddressSearchOpen(false),
@@ -110,64 +151,177 @@ export function ProfileEditPage({ user, onBack, onUpdateProfile }: ProfileEditPa
     if (!validateForm()) return;
     setIsSubmitting(true);
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
-      const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken');
+      // Next.js API 라우트는 상대 경로를 사용
+      const url = '/api/users/profile';
+
+      // AuthContext와 일치하도록 localStorage에서 토큰 가져오기
+      const token = localStorage.getItem('auth_token') || sessionStorage.getItem('authToken');
+
+      console.log('=== 프로필 수정 디버깅 시작 ===');
+      console.log('토큰 존재 여부:', !!token);
+      console.log('토큰 길이:', token ? token.length : 0);
+      console.log('토큰 시작 부분:', token ? token.substring(0, 20) + '...' : 'none');
+      console.log('localStorage auth_token:', localStorage.getItem('auth_token') ? 'exists' : 'missing');
+      console.log('sessionStorage authToken:', sessionStorage.getItem('authToken') ? 'exists' : 'missing');
+      console.log('현재 사용자 정보:', user);
+      console.log('요청 URL:', url);
+
       if (!token) {
+        console.log('토큰이 없음 - 로그인 필요');
         alert('로그인이 필요합니다. 다시 로그인해주세요.');
         onBack();
         return;
       }
-      const url = `${API_BASE_URL}/api/users/profile`;
+
+      // 토큰 유효성 간단 체크 (JWT 구조 확인)
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        console.log('토큰 형식이 잘못됨 - JWT가 아님');
+        alert('토큰 형식이 잘못되었습니다. 다시 로그인해주세요.');
+        localStorage.removeItem('auth_token');
+        sessionStorage.removeItem('authToken');
+        onBack();
+        return;
+      }
+
+      // JWT payload 디코딩 (검증 없이 내용만 확인)
+      try {
+        const payload = JSON.parse(atob(tokenParts[1]));
+        console.log('토큰 payload:', payload);
+        console.log('토큰 만료 시간:', payload.exp ? new Date(payload.exp * 1000) : 'none');
+        console.log('현재 시간:', new Date());
+
+        // 토큰 만료 확인
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+          console.log('토큰이 만료됨');
+          alert('토큰이 만료되었습니다. 다시 로그인해주세요.');
+          localStorage.removeItem('auth_token');
+          sessionStorage.removeItem('authToken');
+          onBack();
+          return;
+        }
+
+        // JWT 토큰에서 우편번호 정보가 있다면 현재 사용자 정보에 반영
+        if (payload.zipcode && !user.zipcode) {
+          console.log('JWT 토큰에서 우편번호 정보 발견:', payload.zipcode);
+          const updatedUserWithZipcode = {
+            ...user,
+            zipcode: payload.zipcode
+          };
+          onUpdateProfile(updatedUserWithZipcode);
+          localStorage.setItem('auth_user', JSON.stringify(updatedUserWithZipcode));
+        }
+      } catch (e) {
+        console.log('토큰 payload 디코딩 실패:', e);
+        // 디코딩 실패해도 서버에서 검증하므로 계속 진행
+      }
+
       const requestBody = {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
-        zipCode: formData.zipCode,
+        zipcode: formData.zipcode, // zipCode에서 zipcode로 변경
         address: formData.address,
         detailAddress: formData.detailAddress,
         bio: formData.bio,
       };
-      const doRequest = (method: 'PUT' | 'POST' | 'PATCH') => fetch(url, {
-        method,
-        headers: {
+
+      console.log('요청 본문:', requestBody);
+
+      const doRequest = (method: 'PUT' | 'POST' | 'PATCH') => {
+        console.log(`${method} 요청 시작`);
+        const headers = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
-        },
-        credentials: 'include',
-        redirect: 'follow',
-        body: JSON.stringify(requestBody),
-      });
+        };
+        console.log('요청 헤더:', { ...headers, Authorization: 'Bearer ***' });
+
+        return fetch(url, {
+          method,
+          headers,
+          body: JSON.stringify(requestBody),
+        });
+      };
+
       let response = await doRequest('PUT');
+      console.log('PUT 응답 상태:', response.status);
+
       if (response.status === 405) {
         console.warn('PUT 405(Method Not Allowed) -> POST로 재시도');
         response = await doRequest('POST');
+        console.log('POST 응답 상태:', response.status);
       }
-      if (response.redirected && (response.url || '').endsWith('/login')) {
-        alert('인증이 필요합니다. 다시 로그인해주세요.');
-        onBack();
-        return;
-      }
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('응답 오류:', response.status, errorText);
+
         if (response.status === 401) {
+          console.log('401 오류 - 인증 실패');
           alert('인증이 만료되었습니다. 다시 로그인해주세요.');
+          // 만료된 토큰 삭제
+          localStorage.removeItem('auth_token');
+          sessionStorage.removeItem('authToken');
           onBack();
           return;
         }
-        if (response.status === 403) { alert('수정 권한이 없습니다.'); return; }
-        if (response.status === 404) { alert('프로필 API 엔드포인트를 찾을 수 없습니다.'); return; }
-        if (response.status === 405) { alert('서버가 해당 메서드를 허용하지 않습니다.'); return; }
-        const errorText = await response.text();
+        if (response.status === 403) {
+          alert('수정 권한이 없습니다.');
+          return;
+        }
+        if (response.status === 404) {
+          alert('프로필 API 엔드포인트를 찾을 수 없습니다.');
+          return;
+        }
+        if (response.status === 405) {
+          alert('서버가 해당 메서드를 허용하지 않습니다.');
+          return;
+        }
+
         throw new Error(`서버 오류: ${response.status} - ${errorText}`);
       }
-      const updatedUserData = await response.json();
-      const updatedUser: User = { ...user, ...updatedUserData };
-      sessionStorage.setItem('user', JSON.stringify(updatedUser));
+
+      // 서버 응답 처리 개선
+      let updatedUserData;
+      try {
+        const responseText = await response.text();
+        console.log('서버 응답:', responseText);
+        updatedUserData = JSON.parse(responseText);
+      } catch (e) {
+        // JSON 파싱 실패 시 formData를 사용
+        console.warn('서버 응답 JSON 파싱 실패, formData 사용:', e);
+        updatedUserData = {
+          id: user.id,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          zipcode: formData.zipcode, // zipCode에서 zipcode로 변경
+          address: formData.address,
+          detailAddress: formData.detailAddress,
+          bio: formData.bio,
+        };
+      }
+
+      // 업데이트된 사용자 정보 생성
+      const updatedUser: User = {
+        ...user,
+        ...updatedUserData
+      };
+
+      console.log('업데이트된 사용자 정보:', updatedUser);
+
+      // AuthContext의 updateUser 함수를 통해 상태 업데이트
       onUpdateProfile(updatedUser);
+
+      // localStorage에도 업데이트된 정보 저장 (AuthContext와 일치)
+      localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+
+      console.log('=== 프로필 수정 성공 ===');
       alert('프로필이 성공적으로 업데이트되었습니다!');
       onBack();
     } catch (err) {
       console.error('Profile update error:', err);
-      alert('프로필 업데이트에 실패했습니다. 다시 시도해주세요.');
+      alert(`프로필 업데이트에 실패했습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -187,6 +341,43 @@ export function ProfileEditPage({ user, onBack, onUpdateProfile }: ProfileEditPa
         </div>
 
         <div className="max-w-2xl mx-auto">
+          {/* 사용자 정보 섹션 추가 */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-semibold text-blue-800 mb-2">현재 로그인 정보</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="flex items-center">
+                <span className="font-medium text-blue-700 mr-2">MEMBER_ID:</span>
+                <span className="text-blue-900 font-mono bg-blue-100 px-2 py-1 rounded">
+                  {user?.memberId || user?.id || 'ID를 찾을 수 없음'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-blue-700 mr-2">이메일:</span>
+                <span className="text-blue-900">
+                  {user?.email || '이메일 정보 없음'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-blue-700 mr-2">이름:</span>
+                <span className="text-blue-900">
+                  {user?.name || '이름 정보 없음'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-blue-700 mr-2">우편번호:</span>
+                <span className="text-blue-900 font-mono bg-blue-100 px-2 py-1 rounded">
+                  {user?.zipcode || '우편번호 정보 없음'}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-blue-700 mr-2">상태:</span>
+                <span className="text-green-600 font-medium">
+                  ✓ 로그인됨 (MEMBER 테이블)
+                </span>
+              </div>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
               <h3 className="text-lg font-medium border-b pb-2">기본 정보</h3>
@@ -239,8 +430,8 @@ export function ProfileEditPage({ user, onBack, onUpdateProfile }: ProfileEditPa
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={formData.zipCode}
-                    onChange={(e) => handleInputChange('zipCode', e.target.value)}
+                    value={formData.zipcode}
+                    onChange={(e) => handleInputChange('zipcode', e.target.value)}
                     className="flex-1 px-3 py-2 border rounded-md bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-primary"
                     placeholder="우편번호"
                     readOnly
@@ -286,13 +477,13 @@ export function ProfileEditPage({ user, onBack, onUpdateProfile }: ProfileEditPa
         </div>
 
         {isAddressSearchOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">주소 검색</h3>
+                <h3 className="text-lg font-semibold text-card-foreground">주소 검색</h3>
                 <Button variant="ghost" onClick={() => setIsAddressSearchOpen(false)} className="p-1">✕</Button>
               </div>
-              <div id="addressSearchContainer" className="w-full h-96 border rounded" />
+              <div id="addressSearchContainer" className="w-full h-96 border border-border rounded" />
             </div>
           </div>
         )}

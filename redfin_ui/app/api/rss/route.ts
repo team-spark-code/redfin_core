@@ -15,7 +15,7 @@ const DEFAULT_RSS_FEEDS = [
   "http://rss.cnn.com/rss/edition.rss",
   "https://feeds.bbci.co.uk/news/rss.xml",
   "https://rss.donga.com/total.xml",
-  "https://rss.chosun.com/rss/news.xml",
+  "http://rss.chosun.com/rss/news.xml", // https -> http
   "https://rss.hankyung.com/news.xml"
 ];
 
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
           pubDate: item.pubDate || item.published || item.updated || "",
           author: item.author?.name || item.author || item["dc:creator"] || "",
           category: item.category?.["#text"] || item.category || "일반",
-          imageUrl: extractImageUrl(item)
+          imageUrl: (() => { const img = extractImageUrl(item); return img ?? undefined; })()
         }));
 
         allItems.push(...normalizedItems);

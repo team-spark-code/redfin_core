@@ -2,14 +2,6 @@
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import {
   Newspaper,
   TrendingUp,
   Settings,
@@ -19,6 +11,8 @@ import {
 } from "lucide-react";
 import { NewsFilters } from "./NewsFilters";
 import RealtimeNewsTicker from "./RealtimeNewsTicker";
+import { ThemeToggle } from "./ThemeToggle";
+import { useState, useRef, useEffect } from "react";
 
 // 사용자 정보 타입 정의
 type User = {
@@ -26,6 +20,97 @@ type User = {
   name: string;
   email: string;
 };
+
+// 커스텀 드롭다운 컴포넌트
+interface UserDropdownProps {
+  user: User;
+  onProfileClick: () => void;
+  onInterestsClick: () => void;
+  onLogout: () => void;
+}
+
+function UserDropdown({ user, onProfileClick, onInterestsClick, onLogout }: UserDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const handleMenuClick = (action: () => void) => {
+    action();
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-muted transition-colors"
+      >
+        <Avatar className="w-8 h-8">
+          <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+            {user.name.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="text-left min-w-0">
+          <div className="text-sm font-medium truncate">
+            {user.name}
+          </div>
+          <div className="text-xs text-muted-foreground truncate">
+            {user.email}
+          </div>
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-2 w-56 bg-card border border-border rounded-md shadow-lg z-50">
+          <div className="px-3 py-2 border-b border-border">
+            <p className="text-sm font-semibold text-card-foreground">내 계정</p>
+          </div>
+          
+          <div className="py-1">
+            <button
+              onClick={() => handleMenuClick(onProfileClick)}
+              className="flex items-center w-full px-3 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
+            >
+              <User className="mr-2 h-4 w-4" />
+              프로필
+            </button>
+            
+            <button
+              onClick={() => handleMenuClick(onInterestsClick)}
+              className="flex items-center w-full px-3 py-2 text-sm text-card-foreground hover:bg-muted transition-colors"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              관심사 설정
+            </button>
+            
+            <hr className="my-1 border-border" />
+
+            <button
+              onClick={() => handleMenuClick(onLogout)}
+              className="flex items-center w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              로그아웃
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // 🔹 Header 컴포넌트의 Props 정의 수정
 interface HeaderProps {
@@ -89,6 +174,7 @@ export function Header({
           </div>
 
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             {user ? (
               <>
                 {/* 직접 로그아웃 버튼 추가 */}
@@ -102,64 +188,12 @@ export function Header({
                   로그아웃
                 </Button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="flex items-center gap-2 px-2"
-                    >
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback>{user.name.slice(0, 2)}</AvatarFallback>
-                      </Avatar>
-                      <div className="text-left min-w-0">
-                        <div className="text-sm font-medium truncate">
-                          {user.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {user.email}
-                        </div>
-                      </div>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>내 계정</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {/* 프로필 메뉴 */}
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.preventDefault();
-                        console.log("프로필 클릭됨");
-                        onProfileClick();
-                      }}
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      <span>프로필</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.preventDefault();
-                        console.log("관심사 설정 클릭됨");
-                        onInterestsClick();
-                      }}
-                    >
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>관심사 설정</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {/* 모바일에서도 보이는 로그아웃 */}
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.preventDefault();
-                        console.log("로그아웃 클릭됨");
-                        onLogout();
-                      }}
-                      className="text-destructive sm:hidden"
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>로그아웃</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <UserDropdown 
+                  user={user} 
+                  onProfileClick={onProfileClick}
+                  onInterestsClick={onInterestsClick}
+                  onLogout={onLogout}
+                />
               </>
             ) : (
               <div className="flex items-center gap-2">

@@ -154,7 +154,7 @@ export function NewsFilters({
             placeholder="뉴스 검색... (실시간 검색)"
             value={searchQuery}
             onChange={(e) => handleSearchInput(e.target.value)}
-            className="pl-10 pr-10"
+            className="pl-10 pr-10 text-black bg-white placeholder:text-gray-500 border border-gray-300 dark:text-white dark:bg-gray-900 dark:placeholder:text-gray-400 dark:border-gray-700"
             onFocus={() => {
               if (searchResults.length > 0) setShowResults(true);
             }}
@@ -165,29 +165,29 @@ export function NewsFilters({
 
           {/* 실시간 검색 결과 */}
           {showResults && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-96 overflow-y-auto">
-              <div className="p-2 text-xs text-gray-500 border-b">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-96 overflow-y-auto dark:bg-gray-900 dark:border-gray-700">
+              <div className="p-2 text-xs text-gray-500 border-b dark:text-gray-400 dark:border-gray-700">
                 실시간 검색 결과 ({searchResults.length}개)
               </div>
               {searchResults.map((result, index) => (
                 <div
                   key={index}
                   onClick={() => handleResultClick(result)}
-                  className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 transition-colors"
+                  className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 transition-colors dark:hover:bg-gray-800 dark:border-gray-700"
                 >
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1">
+                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1 dark:text-gray-100">
                         {result.title}
                         {result.link && <ExternalLink className="inline w-3 h-3 ml-1 opacity-60" />}
                       </h4>
                       {result.description && (
-                        <p className="text-xs text-gray-600 line-clamp-2 mb-1">
+                        <p className="text-xs text-gray-600 line-clamp-2 mb-1 dark:text-gray-300">
                           {result.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <span className="px-1.5 py-0.5 bg-gray-100 rounded font-medium">
+                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span className="px-1.5 py-0.5 bg-gray-100 rounded font-medium dark:bg-gray-800 dark:text-gray-300">
                           {result.source}
                         </span>
                         <span>{result.time}</span>

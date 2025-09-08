@@ -72,28 +72,61 @@ async function fetchNews(params?: { search?: string; tags?: string[] }) {
   qp.set("page", "1");
   qp.set("size", "200");
   qp.set("include_news", "false");
-  if (params?.search) qp.set("search", params.search);
+
+  // AI 관련 뉴스만 가져오도록 설정
+  if (params?.search) {
+    qp.set("search", params.search);
+  } else {
+    // 검색어가 없으면 AI 관련 키워드로 검색
+    qp.set("search", "AI OR 인공지능 OR ChatGPT OR GPT OR 머신러닝 OR 딥러닝 OR OpenAI OR 생성형AI");
+  }
+
+  // AI 관련 태그 추가
+  qp.append("tags", "topic/AI");
+  qp.append("tags", "technology");
   (params?.tags ?? []).forEach((t) => qp.append("tags", t));
 
-  const r = await fetch(`/api/news?${qp.toString()}`, { cache: "no-store" });
-  if (!r.ok) throw new Error(`Failed to fetch /api/news (${r.status})`);
-  const json: ArticlesListResponse = await r.json();
-  return json;
+  try {
+    const r = await fetch(`/api/news?${qp.toString()}`, { cache: "no-store" });
+    if (!r.ok) {
+      const errorData = await r.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(errorData.error || `API returned ${r.status}`);
+    }
+    const json: ArticlesListResponse = await r.json();
+    return json;
+  } catch (error) {
+    console.error('Failed to fetch articles:', error);
+    // 빈 결과 반환하여 앱이 계속 작동하도록 함
+    return { items: [], total: 0, page: 1, size: 200 };
+  }
 }
 
-// RSS 데이터를 NewsNormalized 형식으로 변환하는 함수
+// RSS 데이터를 NewsNormalized 형식으로 변환하는 함수 (AI 필터링 추가)
 function normalizeRSSData(rssItems: RSSItem[]): NewsNormalized[] {
-  return rssItems.map((item, i) => ({
-    id: item.link || `rss-${i}`,
-    title: item.title || "(제목 없음)",
-    description: item.description || "",
-    category: item.category || "technology",
-    publishedAt: item.pubDate || new Date().toISOString(),
-    imageUrl: item.imageUrl || null, // RSS에서 가져온 이미지 URL 사용
-    sourceUrl: item.link,
-    source: "RSS",
-    tags: [],
-  }));
+  const aiKeywords = [
+    'ai', 'artificial intelligence', '인공지능', 'chatgpt', 'gpt',
+    '머신러닝', 'machine learning', '딥러닝', 'deep learning',
+    'openai', '생성형ai', 'generative ai', '자율주행', 'autonomous',
+    'neural network', '신경망', 'llm', 'large language model'
+  ];
+
+  return rssItems
+    .filter((item) => {
+      // 제목이나 설명에 AI 관련 키워드가 포함된 뉴스만 필터링
+      const text = `${item.title} ${item.description || ''}`.toLowerCase();
+      return aiKeywords.some(keyword => text.includes(keyword));
+    })
+    .map((item, i) => ({
+      id: item.link || `rss-${i}`,
+      title: item.title || "(제목 없음)",
+      description: item.description || "",
+      category: "technology", // AI 뉴스는 모두 technology 카테고리로 설정
+      publishedAt: item.pubDate || new Date().toISOString(),
+      imageUrl: item.imageUrl || null,
+      sourceUrl: item.link,
+      source: "RSS",
+      tags: ["AI", "technology"],
+    }));
 }
 
 // RSS 데이터 가져오기 함수
@@ -127,15 +160,13 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [news, setNews] = useState<NewsNormalized[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { user, logout, isLoading: authLoading } = useAuth();
+  const { user, logout, login: authLogin, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [rssNews, setRssNews] = useState<NewsNormalized[]>([]);
 
-  // 임시 사용자 정보 (실제로는 인증 시스템에서 가져와야 함)
-  const [userState, setUserState] = useState<{ id: number; name: string; email: string } | null>(null);
+
 
   // 뉴스 데이터 가져오기 (기존 + RSS)
   useEffect(() => {
@@ -278,14 +309,30 @@ export default function Page() {
     logout();
   };
 
+  // 로그인 성공 핸들러 추가
+  const handleLoginSuccess = (userData: any) => {
+    console.log('메인 페이지에서 로그인 성공 처리:', userData);
+
+    // localStorage에서 토큰 가져오기
+    const token = localStorage.getItem('auth_token');
+
+    if (token && userData) {
+      // AuthContext의 login 함수 호출
+      authLogin(token, userData);
+      console.log('AuthContext login 함수 호출 완료');
+    } else {
+      console.error('토큰 또는 사용자 데이터가 없음');
+    }
+  };
+
   const handleProfileClick = () => {
-    console.log('프로필 클릭');
-    // 프로필 페이지로 이동하거나 프로필 모달을 열어야 함
+    // 프로필 페이지로 이동
+    router.push('/profile');
   };
 
   const handleInterestsClick = () => {
-    console.log('관심사 설정 클릭');
-    // 관심사 설정 페이지로 이동하거나 모달을 열어야 함
+    // 관심사 설정 페이지로 이동
+    router.push('/interests');
   };
 
   const handleHomeClick = () => {
@@ -328,23 +375,22 @@ export default function Page() {
             <button
               onClick={handleRefresh}
               className="ml-2 underline hover:no-underline"
-            >
-              다시 시도
-            </button>
+            ></button>
+              ��시 시도
           </div>
         </div>
       )}
 
-      {/* RSS 상태 표시 */}
+      {/* AI 뉴스 상태 표시 */}
       <div className="container mx-auto px-4 pt-4">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>총 {filteredNews.length}개 기사 (일반: {news.length}, RSS: {rssNews.length})</span>
+          <span>총 {filteredNews.length}개 AI 뉴스 (일반: {news.length}, RSS: {rssNews.length})</span>
           <button
             onClick={handleRefreshRSS}
             className="hover:text-foreground transition-colors"
             disabled={isLoading}
           >
-            RSS 새로고침
+            AI RSS 새로고침
           </button>
         </div>
       </div>

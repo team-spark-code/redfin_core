@@ -22,9 +22,13 @@ function formatDateKST(s?: string) {
   return d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
 }
 
-export function FeaturedNewsSection({ featuredNews }: { featuredNews: NewsItem[] }) {
+export function FeaturedNewsSection({ featuredNews, onNewsClick }: { featuredNews: NewsItem[]; onNewsClick?: (id: string) => void }) {
   // 카드 클릭 핸들러
   const handleCardClick = (newsItem: NewsItem) => {
+    if (onNewsClick) {
+      onNewsClick(newsItem.id);
+      return;
+    }
     if (newsItem.sourceUrl) {
       // 실제 뉴스 링크가 있으면 새 탭에서 열기
       window.open(newsItem.sourceUrl, '_blank', 'noopener,noreferrer');
