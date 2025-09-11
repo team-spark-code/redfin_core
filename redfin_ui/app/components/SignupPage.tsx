@@ -23,6 +23,7 @@ interface SignupFormData {
 
 interface SignupPageProps {
   onBack: () => void;
+  onSubmit?: (data: SignupFormData) => void;
 }
 
 const KakaoIcon = ({ className }: { className?: string }) => (
@@ -36,7 +37,7 @@ const KakaoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export function SignupPage({ onBack }: SignupPageProps) {
+export function SignupPage({ onBack, onSubmit }: SignupPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,16 +51,38 @@ export function SignupPage({ onBack }: SignupPageProps) {
 
   const password = watch("password");
 
-  const onSubmit = async (data: SignupFormData) => {
+  const handleFormSubmit = async (data: SignupFormData) => {
     setIsLoading(true);
-    // 실제 구현에서는 여기서 API 호출
-    console.log("회원가입 데이터:", data);
     
-    // 모의 지연
-    setTimeout(() => {
+    try {
+      if (onSubmit) {
+        // 상위 컴포넌트에서 처리 (결제 인증 포함)
+        await onSubmit(data);
+      } else {
+        // 기본 처리 (결제 인증 없이)
+        console.log("회원가입 데이터:", data);
+        
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || '회원가입에 실패했습니다.');
+        }
+
+        alert("회원가입이 완료되었습니다!");
+      }
+    } catch (error: any) {
+      console.error('회원가입 실패:', error);
+      alert(error.message || '회원가입 중 오류가 발생했습니다.');
+    } finally {
       setIsLoading(false);
-      alert("회원가입이 완료되었습니다!");
-    }, 2000);
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -148,7 +171,7 @@ export function SignupPage({ onBack }: SignupPageProps) {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
               {/* 이름 */}
               <div className="space-y-2">
                 <Label htmlFor="fullName">이름 *</Label>

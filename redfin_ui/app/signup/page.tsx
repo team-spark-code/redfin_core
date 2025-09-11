@@ -7,27 +7,18 @@ import { Input } from "../components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Label } from "../components/ui/label";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { Loader2, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Loader2, Eye, EyeOff, ArrowLeft, Shield, CreditCard } from "lucide-react";
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
-// 폼 제출 버튼 컴포넌트 (로딩 상태 표시)
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending} className="w-full">
-      {pending ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          회원가입 중...
-        </>
-      ) : (
-        "회원가입"
-      )}
-    </Button>
-  );
+// Toss Payments 타입 정의
+declare global {
+  interface Window {
+    TossPayments: any;
+  }
 }
 
+// 폼 제출 버튼 컴포넌트 (로딩 상태 표시)
 export default function SignupPage() {
   const [state, formAction] = useFormState(signup, { error: undefined });
   const [showPassword, setShowPassword] = useState(false);
@@ -40,37 +31,213 @@ export default function SignupPage() {
   const [phoneError, setPhoneError] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreeTermsError, setAgreeTermsError] = useState("");
+  
+  // 결제 인증 관련 상태
+  const [showPaymentVerification, setShowPaymentVerification] = useState(false);
+  const [paymentWidget, setPaymentWidget] = useState<any>(null);
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentVerified, setPaymentVerified] = useState(false);
+  const paymentMethodsRef = useRef<HTMLDivElement>(null);
 
   const phone1Ref = useRef<HTMLInputElement>(null);
   const phone2Ref = useRef<HTMLInputElement>(null);
   const phone3Ref = useRef<HTMLInputElement>(null);
 
+  const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY || 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq';
+
+  // 결제 시스템 시뮬레이션
+  useEffect(() => {
+    if (showPaymentVerification) {
+      // 시뮬레이션을 위한 지연
+      const timer = setTimeout(() => {
+        setPaymentWidget({ ready: true });
+        setPaymentError(null);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showPaymentVerification]);
+
+  // 결제 인증 처리 (시뮬레이션)
+  const handlePaymentVerification = async () => {
+    if (!paymentWidget || !paymentWidget.ready) {
+      setPaymentError('결제 시스템이 준비되지 않았습니다.');
+      return;
+    }
+
+    setIsPaymentLoading(true);
+    setPaymentError(null);
+
+    try {
+      // 실제 결제 대신 시뮬레이션
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // 본인인증 완료 처리
+      console.log('본인인증 완료: paymentVerified 상태를 true로 변경');
+      setPaymentVerified(true);
+      setShowPaymentVerification(false);
+      alert('본인인증이 완료되었습니다! 이제 회원가입을 진행하세요.');
+      
+      // 상태 변경 확인을 위한 로그
+      setTimeout(() => {
+        console.log('본인인증 상태 확인:', { paymentVerified: true });
+      }, 100);
+
+    } catch (err: any) {
+      console.error('결제 인증 실패:', err);
+      setPaymentError(err.message || '본인인증에 실패했습니다.');
+    } finally {
+      setIsPaymentLoading(false);
+    }
+  };
+
   // 커스텀 폼 제출 핸들러
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setConfirmPasswordError("");
     setPhoneError("");
     setAgreeTermsError("");
+    
     if (!agreeTerms) {
       setAgreeTermsError("회원가입을 위해 이용약관에 동의해야 합니다.");
       return;
     }
+    
     const form = e.currentTarget;
     const password = (form.elements.namedItem("password") as HTMLInputElement)?.value;
     if (password !== confirmPassword) {
       setConfirmPasswordError("비밀번호가 일치하지 않습니다.");
       return;
     }
+    
     // 전화번호 유효성 검사
     if (!/^\d{3}$/.test(phone1) || !/^\d{3,4}$/.test(phone2) || !/^\d{4}$/.test(phone3)) {
       setPhoneError("휴대폰 번호를 올바르게 입력하세요. 예: 010-1234-5678");
       return;
     }
+
+    // 결제 인증이 완료되지 않은 경우 인증 단계로 이동
+    if (!paymentVerified) {
+      setShowPaymentVerification(true);
+      return;
+    }
+
     // FormData에 phone 필드 추가
     const formData = new FormData(form);
     formData.set("phone", `${phone1}-${phone2}-${phone3}`);
+    formData.set("paymentVerified", "true");
     formAction(formData);
   };
+
+  if (showPaymentVerification) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md mx-auto">
+          <Card>
+            <CardHeader className="space-y-1">
+              <div className="flex items-center justify-center relative">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute left-0"
+                  onClick={() => setShowPaymentVerification(false)}
+                >
+                  <ArrowLeft className="h-6 w-6" />
+                </Button>
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-primary" />
+                  <CardTitle className="text-2xl font-bold">본인인증</CardTitle>
+                </div>
+              </div>
+              <CardDescription className="text-center">
+                안전한 서비스 이용을 위해 결제 수단을 통한 본인인증을 진행합니다.
+                <br />
+                소액(100원)이 결제되며, 인증 완료 후 자동으로 환불됩니다.
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="space-y-6">
+              {paymentError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{paymentError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="text-sm text-blue-700 space-y-1">
+                  <p>• 결제 수단을 통한 실명 확인이 진행됩니다</p>
+                  <p>• 100원이 결제되며, 인증 완료 후 즉시 환불됩니다</p>
+                  <p>• 신용카드, 체크카드 모두 사용 가능합니다</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-medium flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  결제 수단 선택
+                </h3>
+                
+                <div className="min-h-[200px] border rounded-lg p-6">
+                  {!paymentWidget || !paymentWidget.ready ? (
+                    <div className="flex items-center justify-center h-48">
+                      <div className="text-center space-y-2">
+                        <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                        <p className="text-sm text-gray-500">결제 시스템 준비 중...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-4">
+                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                        <CreditCard className="w-8 h-8 text-green-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium mb-2">결제 수단이 준비되었습니다</h4>
+                        <p className="text-sm text-gray-600">
+                          신용카드 또는 체크카드로 100원 결제 후<br />
+                          즉시 환불 처리됩니다.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button 
+                  onClick={handlePaymentVerification}
+                  disabled={isPaymentLoading || !paymentWidget}
+                  className="flex-1"
+                >
+                  {isPaymentLoading ? '인증 진행 중...' : '본인인증 진행'}
+                </Button>
+                
+                {process.env.NODE_ENV === 'development' && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      console.log('개발 모드: 본인인증 건너뛰기');
+                      setPaymentVerified(true);
+                      setShowPaymentVerification(false);
+                      alert('개발 모드: 본인인증을 건너뛰었습니다.');
+                      
+                      // 상태 변경 확인을 위한 로그
+                      setTimeout(() => {
+                        console.log('건너뛰기 후 상태:', { paymentVerified: true });
+                      }, 100);
+                    }}
+                    disabled={isPaymentLoading}
+                  >
+                    건너뛰기
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -87,6 +254,11 @@ export default function SignupPage() {
             </div>
             <CardDescription className="text-center">
               새 계정을 만들어 서비스를 시작하세요
+              {paymentVerified && (
+                <span className="block text-green-600 text-sm mt-2 font-medium">
+                  ✓ 본인인증이 완료되었습니다
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -118,7 +290,7 @@ export default function SignupPage() {
               </Alert>
             )}
 
-            <form action={formAction} className="space-y-4" onSubmit={handleSubmit}>
+            <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="name">이름</Label>
                 <Input
@@ -162,7 +334,7 @@ export default function SignupPage() {
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="6자 이상의 비밀번호"
+                    placeholder="8자 이상의 비밀번호"
                     required
                     autoComplete="new-password"
                   />
@@ -320,7 +492,20 @@ export default function SignupPage() {
                 </Alert>
               )}
 
-              <SubmitButton />
+              <Button 
+                type="submit" 
+                className={`w-full ${paymentVerified ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                disabled={false}
+              >
+                {paymentVerified ? "✓ 회원가입" : "본인인증 후 회원가입"}
+              </Button>
+              
+              {/* 본인인증 상태 디버깅 정보 */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="text-xs text-gray-400 mt-2 text-center">
+                  Debug: paymentVerified = {paymentVerified.toString()}
+                </div>
+              )}
             </form>
 
             <div className="mt-4 text-center">

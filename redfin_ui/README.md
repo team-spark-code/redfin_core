@@ -42,6 +42,7 @@ This is a web application that provides personalized AI news to users. It authen
 - Node.js
 - pnpm (or npm/yarn)
 - MariaDB (or other compatible database)
+- **Elasticsearch**: Must be running on port 9200 for the backend (Spring Boot) to function correctly.
 
 ### Installation
 
