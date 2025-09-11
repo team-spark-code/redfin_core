@@ -14,7 +14,7 @@ import java.util.List;
 public class RawRssItem {
     // 기본 식별
     @Id
-    @Column(name = "guid", nullable = false, unique = true, length = 1000)
+    @Column(name = "guid", nullable = false, unique = true, length = 255)
     private String guid;
 
     @Column(name = "source", nullable = false, length = 500)

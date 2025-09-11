@@ -7,11 +7,9 @@ import { Input } from "../components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Label } from "../components/ui/label";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
-import { SiKakaotalk } from "react-icons/si";
-import { useRouter } from "next/navigation";
+import { useState, useRef } from "react";
 
 // 폼 제출 버튼 컴포넌트 (로딩 상태 표시)
 function SubmitButton() {
@@ -47,99 +45,6 @@ export default function SignupPage() {
   const phone2Ref = useRef<HTMLInputElement>(null);
   const phone3Ref = useRef<HTMLInputElement>(null);
 
-  // === Google Identity Services 준비 ===
-  const router = useRouter();
-  const googleBtnRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    // 클라이언트 ID가 없으면 렌더링 생략
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      console.warn("NEXT_PUBLIC_GOOGLE_CLIENT_ID가 설정되어 있지 않습니다. 구글 가입 버튼 렌더링을 건너뜁니다.");
-      return;
-    }
-
-    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-
-    const onLoad = () => {
-      try {
-        // @ts-ignore - 전역 google 객체 사용
-        const google = (window as any).google;
-        if (!google?.accounts?.id) return;
-
-        google.accounts.id.initialize({
-          client_id: clientId,
-          callback: async (response: any) => {
-            try {
-              const credential: string | undefined = response?.credential;
-              if (!credential) return;
-
-              const res = await fetch("/api/auth/google", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ credential }),
-              });
-
-              const result = await res.json();
-              if (res.ok && result.token && result.user) {
-                // 로그인/가입 성공 처리: 토큰 저장 후 리다이렉트
-                localStorage.setItem("auth_token", result.token);
-                localStorage.setItem("auth_user", JSON.stringify(result.user));
-                router.push("/");
-              } else {
-                alert(result?.message || "구글 가입에 실패했습니다.");
-              }
-            } catch (err) {
-              console.error("구글 가입 처리 오류:", err);
-              alert("구글 가입 처리 중 오류가 발생했습니다.");
-            }
-          },
-          auto_select: false,
-          ux_mode: "popup",
-          context: "signup",
-        });
-
-        if (googleBtnRef.current) {
-          google.accounts.id.renderButton(googleBtnRef.current, {
-            type: "standard",
-            theme: "filled_blue",
-            text: "signup_with",
-            shape: "rectangular",
-            size: "large",
-            logo_alignment: "left",
-          });
-        }
-      } catch (e) {
-        console.error("Google Identity 초기화 오류", e);
-      }
-    };
-
-    if (existing) {
-      // 이미 스크립트가 로드된 경우 바로 초기화
-      if ((existing as HTMLScriptElement).getAttribute("data-loaded")) {
-        onLoad();
-      } else {
-        existing.addEventListener("load", onLoad, { once: true } as any);
-      }
-      return () => existing.removeEventListener("load", onLoad as any);
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      script.setAttribute("data-loaded", "true");
-      onLoad();
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      script.onload = null;
-      if (script.parentNode) script.parentNode.removeChild(script);
-    };
-  }, [router]);
-
   // 커스텀 폼 제출 핸들러
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -172,7 +77,14 @@ export default function SignupPage() {
       <div className="w-full max-w-md mx-auto">
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">회원가입</CardTitle>
+            <div className="flex items-center justify-center relative">
+                <Link href="/" className="absolute left-0">
+                    <Button variant="ghost" size="icon" aria-label="뒤로가기">
+                        <ArrowLeft className="h-6 w-6" />
+                    </Button>
+                </Link>
+                <CardTitle className="text-2xl font-bold">회원가입</CardTitle>
+            </div>
             <CardDescription className="text-center">
               새 계정을 만들어 서비스를 시작하세요
             </CardDescription>
@@ -205,26 +117,6 @@ export default function SignupPage() {
                 <AlertDescription>{phoneError}</AlertDescription>
               </Alert>
             )}
-
-            {/* 소셜 로그인 아이콘 버튼 */}
-            <div className="flex justify-center gap-4 mb-6">
-              <button
-                type="button"
-                className="flex items-center gap-2 px-4 py-2 rounded bg-[#FEE500] hover:bg-[#FAD400] text-black font-semibold shadow"
-                onClick={() => alert('카카오로 가입 기능은 준비 중입니다.')}
-                aria-label="카카오로 가입"
-              >
-                <SiKakaotalk className="w-5 h-5" aria-hidden="true" />
-                카카오로 가입
-              </button>
-              {/* 구글 GSI 버튼 컨테이너 */}
-              <div
-                className="flex items-center"
-                aria-label="구글로 가입"
-              >
-                <div ref={googleBtnRef} />
-              </div>
-            </div>
 
             <form action={formAction} className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">

@@ -6,7 +6,7 @@ import { InterestsSettingsPage } from "../components/InterestsSettingsPage";
 import { useEffect } from "react";
 
 export default function InterestsPage() {
-  const { user } = useAuth();
+  const { user, refreshUserFromMember } = useAuth(); // refreshUserFromMember 가져오기
   const router = useRouter();
 
   // 사용자가 로그인하지 않은 경우 로그인 페이지로 리다이렉트
@@ -21,19 +21,20 @@ export default function InterestsPage() {
   };
 
   const handleUpdateInterests = async (interests: string[]) => {
-    console.log("관심사 업데이트 (MEMBER_ID 사용):", interests);
-    console.log("사용자 정보:", {
-      memberId: user?.memberId,
-      id: user?.id,
-      email: user?.email
-    });
+    if (!user) return;
 
-    // 추가 로직이 필요한 경우 여기에 구현
-    // 예: 상태 업데이트, 다른 컴포넌트에 알림 등
+    try {
+      // 1. AuthContext의 사용자 정보 새로고침 (관심사 포함)
+      await refreshUserFromMember();
+      console.log("관심사 저장 후 AuthContext가 성공적으로 새로고침되었습니다.");
 
-    // MEMBER_ID를 통한 관심사 저장 완료 알림
-    if (user?.memberId || user?.id) {
-      console.log(`MEMBER_ID ${user.memberId || user.id}를 통해 관심사가 성공적으로 업데이트되었습니다.`);
+      // 2. 사용자 경험을 위해 메인 페이지로 이동
+      alert("관심사가 저장되었습니다. 메인 페이지에서 개인화된 뉴스를 확인하세요.");
+      router.push('/');
+
+    } catch (error) {
+      console.error("관심사 업데이트 후 사용자 정보 새로고침 실패:", error);
+      alert("관심사 저장에 성공했으나, 변경사항을 적용하는 데 실패했습니다. 페이지를 새로고침해주세요.");
     }
   };
 

@@ -4,7 +4,8 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
 import { Separator } from "./ui/separator";
-import { ArrowLeft, Eye, EyeOff, Mail, Lock, Github, Chrome } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Mail, Lock, Chrome } from "lucide-react";
+import Image from 'next/image';
 
 // 사용자 정보 타입 정의
 type User = {
@@ -20,6 +21,17 @@ interface LoginPageProps {
   onSignupClick: () => void;
   onLoginSuccess: (user: User) => void; // 🔹 로그인 성공 콜백 함수 prop 추가
 }
+
+const KakaoIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M12 2C6.486 2 2 5.589 2 10.007c0 2.953 1.904 5.53 4.63 6.91-1.242 2.723-3.833 3.893-3.833 3.893s1.635-.493 3.833-1.947c1.132.343 2.32.537 3.537.537 5.514 0 10-3.589 10-8.007S17.514 2 12 2z" />
+  </svg>
+);
 
 export function LoginPage({ onBack, onSignupClick, onLoginSuccess }: LoginPageProps) {
   const [formData, setFormData] = useState({
@@ -218,7 +230,7 @@ export function LoginPage({ onBack, onSignupClick, onLoginSuccess }: LoginPagePr
               </div>
             </div>
 
-            <div className="mt-6 space-y-3">
+            <div className="grid grid-cols-3 gap-2 mt-6">
               <Button
                 type="button"
                 variant="outline"
@@ -227,17 +239,24 @@ export function LoginPage({ onBack, onSignupClick, onLoginSuccess }: LoginPagePr
                 disabled={isLoading}
               >
                 <Chrome className="w-4 h-4 mr-2" />
-                Google로 로그인
+                Google
               </Button>
               <Button
                 type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSocialLogin("github")}
+                className="w-full bg-[#FEE500] text-black hover:bg-[#FEE500]/90"
+                onClick={() => handleSocialLogin("kakao")}
                 disabled={isLoading}
               >
-                <Github className="w-4 h-4 mr-2" />
-                GitHub로 로그인
+                <KakaoIcon className="w-5 h-5 mr-2" />
+                카카오
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleSocialLogin("naver")}
+                className="w-full p-0 h-10"
+                disabled={isLoading}
+              >
+                <Image src="/web_light_rd_ctn@4x.png" alt="네이버로 로그인" width={100} height={40} style={{ objectFit: 'contain' }} />
               </Button>
             </div>
           </CardContent>

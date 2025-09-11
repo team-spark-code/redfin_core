@@ -1,8 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 import { FeaturedNewsSection } from "./components/FeaturedNewsSection";
@@ -21,6 +20,7 @@ type RSSItem = {
   pubDate?: string;
   author?: string;
   category?: string;
+  imageUrl?: string | null;
 };
 
 type ArticlesListResponse = {
@@ -73,15 +73,12 @@ async function fetchNews(params?: { search?: string; tags?: string[] }) {
   qp.set("size", "200");
   qp.set("include_news", "false");
 
-  // AI 관련 뉴스만 가져오도록 설정
   if (params?.search) {
     qp.set("search", params.search);
   } else {
-    // 검색어가 없으면 AI 관련 키워드로 검색
     qp.set("search", "AI OR 인공지능 OR ChatGPT OR GPT OR 머신러닝 OR 딥러닝 OR OpenAI OR 생성형AI");
   }
 
-  // AI 관련 태그 추가
   qp.append("tags", "topic/AI");
   qp.append("tags", "technology");
   (params?.tags ?? []).forEach((t) => qp.append("tags", t));
@@ -90,18 +87,16 @@ async function fetchNews(params?: { search?: string; tags?: string[] }) {
     const r = await fetch(`/api/news?${qp.toString()}`, { cache: "no-store" });
     if (!r.ok) {
       const errorData = await r.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(errorData.error || `API returned ${r.status}`);
+      console.error('API Error:', errorData.error || `API returned ${r.status}`);
+      return { items: [], total: 0, page: 1, size: 200 };
     }
-    const json: ArticlesListResponse = await r.json();
-    return json;
+    return await r.json();
   } catch (error) {
     console.error('Failed to fetch articles:', error);
-    // 빈 결과 반환하여 앱이 계속 작동하도록 함
     return { items: [], total: 0, page: 1, size: 200 };
   }
 }
 
-// RSS 데이터를 NewsNormalized 형식으로 변환하는 함수 (AI 필터링 추가)
 function normalizeRSSData(rssItems: RSSItem[]): NewsNormalized[] {
   const aiKeywords = [
     'ai', 'artificial intelligence', '인공지능', 'chatgpt', 'gpt',
@@ -112,7 +107,6 @@ function normalizeRSSData(rssItems: RSSItem[]): NewsNormalized[] {
 
   return rssItems
     .filter((item) => {
-      // 제목이나 설명에 AI 관련 키워드가 포함된 뉴스만 필터링
       const text = `${item.title} ${item.description || ''}`.toLowerCase();
       return aiKeywords.some(keyword => text.includes(keyword));
     })
@@ -120,7 +114,7 @@ function normalizeRSSData(rssItems: RSSItem[]): NewsNormalized[] {
       id: item.link || `rss-${i}`,
       title: item.title || "(제목 없음)",
       description: item.description || "",
-      category: "technology", // AI 뉴스는 모두 technology 카테고리로 설정
+      category: "technology",
       publishedAt: item.pubDate || new Date().toISOString(),
       imageUrl: item.imageUrl || null,
       sourceUrl: item.link,
@@ -129,11 +123,13 @@ function normalizeRSSData(rssItems: RSSItem[]): NewsNormalized[] {
     }));
 }
 
-// RSS 데이터 가져오기 함수
 async function fetchRSSNews(): Promise<NewsNormalized[]> {
   try {
     const response = await fetch("/api/rss", { cache: "no-store" });
-    if (!response.ok) throw new Error(`RSS fetch failed (${response.status})`);
+    if (!response.ok) {
+      console.error(`RSS fetch failed (${response.status})`);
+      return [];
+    }
     const data = await response.json();
     return normalizeRSSData(data.data || []);
   } catch (error) {
@@ -149,12 +145,59 @@ function normalizeNews(list: ArticlesListResponse): NewsNormalized[] {
     description: n.Summary ?? "",
     category: (n.category ?? "technology").toString(),
     publishedAt: n.published_at ?? n.created_at ?? "",
-    imageUrl: null,
+    imageUrl: n.hero_image_url || null,
     sourceUrl: n.URL,
     source: "articles",
     tags: n.tags ?? [],
   }));
 }
+
+// 뉴스 카드 클릭 핸들러
+const handleNewsClick = (newsItem: NewsNormalized) => {
+  if (newsItem.sourceUrl) {
+    window.open(newsItem.sourceUrl, '_blank', 'noopener,noreferrer');
+  } else {
+    window.location.href = `/news/${newsItem.id}`;
+  }
+};
+
+// 뉴스 카드 컴포넌트
+const NewsCard = ({ n }: { n: NewsNormalized }) => {
+  const s = getCatStyle(n.category);
+  const Icon = getCategoryIcon(n.category);
+  return (
+    <div
+      key={n.id}
+      className="flex gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
+      onClick={() => handleNewsClick(n)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleNewsClick(n);
+        }
+      }}
+    >
+      <div className={`flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border ${s.grad} ${s.border}`}>
+        <div className={`flex size-10 items-center justify-center rounded-xl ${s.bg} ${s.border} border shadow-sm`}>
+          <Icon className={`size-6 ${s.text}`} />
+        </div>
+      </div>
+      <div className="min-w-0">
+        <div className="font-semibold hover:underline line-clamp-2">{n.title}</div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          <span className={`mr-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] border ${s.bg} ${s.text} ${s.border}`}>
+            {n.category ?? "Uncategorized"}
+          </span>
+          {n.source} · {formatDateKST(n.publishedAt)}
+          {n.sourceUrl && <span className="ml-2 text-blue-500">🔗</span>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 export default function Page() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -162,45 +205,186 @@ export default function Page() {
   const [isLoading, setIsLoading] = useState(false);
   const [news, setNews] = useState<NewsNormalized[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { user, logout, login: authLogin, isLoading: authLoading } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [rssNews, setRssNews] = useState<NewsNormalized[]>([]);
 
-
-
-  // 뉴스 데이터 가져오기 (기존 + RSS)
-  useEffect(() => {
+  const loadNews = useCallback(async (query?: string) => {
     let alive = true;
-    (async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // 기존 뉴스와 RSS 뉴스를 병렬로 가져오기
-        const [articlesRes, rssData] = await Promise.all([
-          fetchNews(),
-          fetchRSSNews(),
-        ]);
-
-        const normalizedArticles = normalizeNews(articlesRes).sort(sortByRecent);
-        const sortedRssNews = rssData.sort(sortByRecent);
-
-        if (alive) {
-          setNews(normalizedArticles);
-          setRssNews(sortedRssNews);
-        }
-      } catch (e: any) {
-        if (alive) setError(e?.message ?? "뉴스를 불러오지 못했습니다.");
-      } finally {
-        if (alive) setIsLoading(false);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [articlesRes, rssData] = await Promise.all([
+        fetchNews(query ? { search: query } : undefined),
+        fetchRSSNews(),
+      ]);
+      if (alive) {
+        setNews(normalizeNews(articlesRes).sort(sortByRecent));
+        setRssNews(rssData.sort(sortByRecent));
       }
-    })();
+    } catch (e: unknown) {
+      if (alive) {
+        const message = e instanceof Error ? e.message : "뉴스를 불러오지 못했습니다.";
+        setError(message);
+      }
+    } finally {
+      if (alive) setIsLoading(false);
+    }
     return () => {
       alive = false;
     };
   }, []);
 
-  // FeaturedLoadingSkeleton 컴포넌트 정의
+  useEffect(() => {
+    // 사용자 관심사를 기반으로 검색 쿼리 생성
+    if (user && user.interests && user.interests.length > 0) {
+      const interestQuery = user.interests.join(' OR ');
+      loadNews(interestQuery);
+    } else {
+      loadNews(); // 기본 뉴스 로드
+    }
+  }, [user, loadNews]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (searchQuery) {
+        loadNews(searchQuery);
+      }
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery, loadNews]);
+
+  const handleRefresh = () => {
+    if (user && user.interests && user.interests.length > 0 && !searchQuery) {
+        const interestQuery = user.interests.join(' OR ');
+        loadNews(interestQuery);
+    } else {
+        loadNews(searchQuery);
+    }
+  };
+
+  const allNews = useMemo(() => [...news, ...rssNews].sort(sortByRecent), [news, rssNews]);
+
+  const textOf = (n: NewsNormalized) => `${n.title} ${n.description} ${n.source} ${n.tags.join(" ")}`.toLowerCase();
+  const passesSearch = (n: NewsNormalized) => !searchQuery || textOf(n).includes(searchQuery.toLowerCase());
+  const passesCategory = (n: NewsNormalized) => selectedCategory === "all" || n.category === selectedCategory;
+
+  const filteredNews = useMemo(() => {
+    return allNews.filter(n => passesSearch(n) && passesCategory(n));
+  }, [allNews, searchQuery, selectedCategory]);
+
+  const isUSUKNews = (n: NewsNormalized) => {
+    if (!n.sourceUrl) return false;
+    try {
+      const url = new URL(n.sourceUrl);
+      const usukDomains = [
+        'wsj.com', 'wired.com', 'techcrunch.com', 'cnn.com', 'npr.org',
+        'theverge.com', 'technologyreview.com', 'nytimes.com', 'washingtonpost.com',
+        'bloomberg.com', 'reuters.com', 'associated-press.org', 'time.com',
+        'bbc.co.uk', 'theguardian.com', 'ft.com', 'independent.co.uk',
+        'telegraph.co.uk', 'economist.com', 'sky.com'
+      ];
+      return usukDomains.some(domain => url.hostname.includes(domain));
+    } catch {
+      return false;
+    }
+  };
+
+  const isAIRelated = (n: NewsNormalized) => {
+    const aiKeywords = [
+      'ai', 'artificial intelligence', '인공지능', 'machine learning', '머신러닝',
+      'deep learning', '딥러닝', 'chatgpt', 'gpt', 'openai', 'neural network',
+      '신경망', 'llm', 'large language model', 'generative ai', '생성형ai',
+      'automation', 'robotics', 'computer vision', 'nlp', 'algorithm'
+    ];
+    const text = `${n.title} ${n.description} ${n.tags.join(' ')}`.toLowerCase();
+    return aiKeywords.some(keyword => text.includes(keyword));
+  };
+
+  const featuredNews = useMemo(() => {
+    const potentialFeatured = filteredNews.filter(n => isUSUKNews(n) && isAIRelated(n));
+
+    if (!user || !user.interests || user.interests.length === 0) {
+        return potentialFeatured.slice(0, 3);
+    }
+
+    const interests = user.interests;
+    const AI_FIELD_INTERESTS = [
+        "Deep Learning", "Machine Learning", "LLM", "Fine-tuning", 
+        "Data Analysis", "Natural Language Processing", "Computer Vision", 
+        "Recommendation System", "Generative AI", "Reinforcement Learning"
+    ];
+
+    const slots: (NewsNormalized | undefined)[] = [undefined, undefined, undefined];
+    const usedIds = new Set<string>();
+
+    // Find the user's selected AI field interest
+    const userAiFieldInterest = interests.find(i => AI_FIELD_INTERESTS.includes(i));
+
+    // Slot 2: AI Field Article
+    if (userAiFieldInterest) {
+        const fieldArticle = potentialFeatured.find(news =>
+            textOf(news).includes(userAiFieldInterest.toLowerCase())
+        );
+        if (fieldArticle) {
+            slots[1] = fieldArticle;
+            usedIds.add(fieldArticle.id);
+        }
+    }
+
+    // Slot 1: Other Primary Interest Article (Job or Company)
+    const otherInterests = interests.filter(i => !AI_FIELD_INTERESTS.includes(i));
+    if (otherInterests.length > 0) {
+        for (const interest of otherInterests) {
+            const primaryArticle = potentialFeatured.find(news =>
+                !usedIds.has(news.id) && textOf(news).includes(interest.toLowerCase())
+            );
+            if (primaryArticle) {
+                slots[0] = primaryArticle;
+                usedIds.add(primaryArticle.id);
+                break;
+            }
+        }
+    }
+
+    // Edge Case: If only an AI Field interest was found, move it to the first slot.
+    if (!slots[0] && slots[1]) {
+        slots[0] = slots[1];
+        slots[1] = undefined;
+    }
+
+    // Fill Remaining Slots
+    const remainingNews = potentialFeatured.filter(news => !usedIds.has(news.id));
+    let remainingIndex = 0;
+    for (let i = 0; i < slots.length; i++) {
+        if (!slots[i] && remainingIndex < remainingNews.length) {
+            slots[i] = remainingNews[remainingIndex];
+            usedIds.add(remainingNews[remainingIndex].id);
+            remainingIndex++;
+        }
+    }
+
+    return slots.filter((news): news is NewsNormalized => news !== undefined);
+}, [filteredNews, user]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Skeleton className="h-8 w-40 mb-2" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+      </div>
+    );
+  }
+  
+  const handleLogin = () => router.push('/login');
+  const handleSignup = () => router.push('/signup');
+  const handleLogout = () => logout();
+  const handleProfileClick = () => router.push('/profile');
+  const handleInterestsClick = () => router.push('/interests');
+  const handleHomeClick = () => router.push('/');
+
   const FeaturedLoadingSkeleton = () => (
     <section className="bg-gradient-to-br from-primary/5 to-secondary/10 border-b">
       <div className="container mx-auto px-4 py-8">
@@ -224,132 +408,6 @@ export default function Page() {
     </section>
   );
 
-  const handleRefreshRSS = async () => {
-    try {
-      setIsLoading(true);
-      const rssData = await fetchRSSNews();
-      setRssNews(rssData.sort(sortByRecent));
-    } catch (e: any) {
-      setError("RSS 새로고침 실패");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 기존 새로고침 + RSS 새로고침
-  const handleRefresh = () => {
-    (async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const [articlesRes, rssData] = await Promise.all([
-          fetchNews(searchQuery ? { search: searchQuery } : undefined),
-          fetchRSSNews(),
-        ]);
-
-        const normalizedArticles = normalizeNews(articlesRes).sort(sortByRecent);
-        const sortedRssNews = rssData.sort(sortByRecent);
-
-        setNews(normalizedArticles);
-        setRssNews(sortedRssNews);
-      } catch (e: any) {
-        setError(e?.message ?? "새로고침 실패");
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  };
-
-  // 모든 뉴스 합치기 (기존 + RSS)
-  const allNews = useMemo(() => {
-    return [...news, ...rssNews].sort(sortByRecent);
-  }, [news, rssNews]);
-
-  // 검색 및 필터링 함수들
-  const textOf = (n: NewsNormalized) =>
-    `${n.title} ${n.description} ${n.source} ${n.tags.join(" ")}`.toLowerCase();
-  const passesSearch = (n: NewsNormalized) =>
-    !searchQuery || textOf(n).includes(searchQuery.toLowerCase());
-  const passesCategory = (n: NewsNormalized) =>
-    selectedCategory === "all" || n.category === selectedCategory;
-
-  // 검색 및 필터링을 allNews에 적용
-  const filteredNews = useMemo(() => {
-    return allNews.filter((n) => {
-      const searchPasses = !searchQuery || textOf(n).includes(searchQuery.toLowerCase());
-      const categoryPasses = selectedCategory === "all" || n.category === selectedCategory;
-      return searchPasses && categoryPasses;
-    });
-  }, [allNews, searchQuery, selectedCategory]);
-
-  const featuredNews = useMemo(() => filteredNews.slice(0, 3), [filteredNews]);
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Skeleton className="h-8 w-40 mb-2" />
-          <Skeleton className="h-4 w-32" />
-        </div>
-      </div>
-    );
-  }
-
-  // Header에서 사용할 핸들러들 업데이트
-  const handleLogin = () => {
-    router.push('/login');
-  };
-
-  const handleSignup = () => {
-    router.push('/signup');
-  };
-
-  const handleLogout = () => {
-    logout();
-  };
-
-  // 로그인 성공 핸들러 추가
-  const handleLoginSuccess = (userData: any) => {
-    console.log('메인 페이지에서 로그인 성공 처리:', userData);
-
-    // localStorage에서 토큰 가져오기
-    const token = localStorage.getItem('auth_token');
-
-    if (token && userData) {
-      // AuthContext의 login 함수 호출
-      authLogin(token, userData);
-      console.log('AuthContext login 함수 호출 완료');
-    } else {
-      console.error('토큰 또는 사용자 데이터가 없음');
-    }
-  };
-
-  const handleProfileClick = () => {
-    // 프로필 페이지로 이동
-    router.push('/profile');
-  };
-
-  const handleInterestsClick = () => {
-    // 관심사 설정 페이지로 이동
-    router.push('/interests');
-  };
-
-  const handleHomeClick = () => {
-    router.push('/');
-  };
-
-  // 뉴스 카드 클릭 핸들러
-  const handleNewsClick = (newsItem: NewsNormalized) => {
-    if (newsItem.sourceUrl) {
-      // 실제 뉴스 링크가 있으면 새 탭에서 열기
-      window.open(newsItem.sourceUrl, '_blank', 'noopener,noreferrer');
-    } else {
-      // 링크가 없으면 내부 상세 페이지로 이동
-      window.location.href = `/news/${newsItem.id}`;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header
@@ -372,25 +430,18 @@ export default function Page() {
         <div className="container mx-auto px-4 mt-3">
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
-            <button
-              onClick={handleRefresh}
-              className="ml-2 underline hover:no-underline"
-            ></button>
-              ��시 시도
+            <button onClick={handleRefresh} className="ml-2 underline hover:no-underline">
+              다시 시도
+            </button>
           </div>
         </div>
       )}
 
-      {/* AI 뉴스 상태 표시 */}
       <div className="container mx-auto px-4 pt-4">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>총 {filteredNews.length}개 AI 뉴스 (일반: {news.length}, RSS: {rssNews.length})</span>
-          <button
-            onClick={handleRefreshRSS}
-            className="hover:text-foreground transition-colors"
-            disabled={isLoading}
-          >
-            AI RSS 새로고침
+          <button onClick={handleRefresh} className="hover:text-foreground transition-colors" disabled={isLoading}>
+            RSS 새로고침
           </button>
         </div>
       </div>
@@ -400,7 +451,6 @@ export default function Page() {
       <LLMRecommendationSection onNewsClick={() => {}} />
 
       <main className="container mx-auto px-4 py-8 flex-1 space-y-10">
-        {/* 하이라이트 - filteredNews 사용 */}
         <section className="space-y-4">
           <h2 className="text-xl font-bold">하이라이트</h2>
           <div className="grid gap-6 lg:grid-cols-3">
@@ -408,10 +458,7 @@ export default function Page() {
               const days = [1, 7, 30][idx];
               const from = Date.now() - days * 24 * 3600 * 1000;
               const items = filteredNews
-                .filter((n) => {
-                  const ts = n.publishedAt ? Date.parse(n.publishedAt) : 0;
-                  return ts >= from;
-                })
+                .filter(n => (n.publishedAt ? Date.parse(n.publishedAt) : 0) >= from)
                 .sort(sortByRecent)
                 .slice(0, 6);
 
@@ -421,52 +468,11 @@ export default function Page() {
                     <h3 className="font-semibold">{label} 하이라이트</h3>
                     <span className="text-xs text-muted-foreground">총 {items.length}건</span>
                   </div>
-
                   {items.length === 0 ? (
                     <p className="text-sm text-muted-foreground">데이터 없음</p>
                   ) : (
                     <div className="grid gap-4">
-                      {items.map((n) => {
-                        const s = getCatStyle(n.category);
-                        const Icon = getCategoryIcon(n.category);
-                        return (
-                          <div
-                            key={n.id}
-                            className="flex gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
-                            onClick={() => handleNewsClick(n)}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleNewsClick(n);
-                              }
-                            }}
-                          >
-                            {/* ✅ 그라데이션 썸네일 */}
-                            <div className={`flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border ${s.grad} ${s.border}`}>
-                              <div className={`flex size-10 items-center justify-center rounded-xl ${s.bg} ${s.border} border shadow-sm`}>
-                                <Icon className={`size-6 ${s.text}`} />
-                              </div>
-                            </div>
-
-                            <div className="min-w-0">
-                              <div className="font-semibold hover:underline line-clamp-2">
-                                {n.title}
-                              </div>
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                <span className={`mr-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] border ${s.bg} ${s.text} ${s.border}`}>
-                                  {n.category ?? "Uncategorized"}
-                                </span>
-                                {n.source} · {formatDateKST(n.publishedAt)}
-                                {n.sourceUrl && (
-                                  <span className="ml-2 text-blue-500">🔗</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {items.map((n) => <NewsCard key={n.id} n={n} />)}
                     </div>
                   )}
                 </div>
@@ -475,7 +481,6 @@ export default function Page() {
           </div>
         </section>
 
-        {/* 카테고리별 Top 3 */}
         <section className="space-y-4">
           <h2 className="text-xl font-bold">카테고리별 Top 3</h2>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -487,10 +492,9 @@ export default function Page() {
               }, {})
             ).map(([cat, items]) => {
               const filtered = items
-                .filter((n) => passesSearch(n) && passesCategory(n))
+                .filter(n => passesSearch(n) && passesCategory(n))
                 .sort(sortByRecent)
                 .slice(0, 3);
-
               const s = getCatStyle(cat);
               return (
                 <div key={cat} className={`rounded-xl border bg-card p-4 ${s.border}`}>
@@ -498,51 +502,11 @@ export default function Page() {
                     <h3 className="font-semibold">{categoryLabels[cat] ?? cat}</h3>
                     <span className="text-xs text-muted-foreground">Top 3</span>
                   </div>
-
                   {filtered.length === 0 ? (
                     <p className="text-sm text-muted-foreground">데이터 없음</p>
                   ) : (
                     <div className="space-y-4">
-                      {filtered.map((n) => {
-                        const tone = getCatStyle(n.category);
-                        const Icon = getCategoryIcon(n.category);
-                        return (
-                          <div
-                            key={n.id}
-                            className="flex gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
-                            onClick={() => handleNewsClick(n)}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleNewsClick(n);
-                              }
-                            }}
-                          >
-                            <div className={`flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border ${tone.grad} ${tone.border}`}>
-                              <div className={`flex size-10 items-center justify-center rounded-xl ${tone.bg} ${tone.border} border shadow-sm`}>
-                                <Icon className={`size-6 ${tone.text}`} />
-                              </div>
-                            </div>
-
-                            <div className="min-w-0">
-                              <div className="font-semibold hover:underline line-clamp-2">
-                                {n.title}
-                              </div>
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                <span className={`mr-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] border ${tone.bg} ${tone.text} ${tone.border}`}>
-                                  {n.category ?? "Uncategorized"}
-                                </span>
-                                {n.source} · {formatDateKST(n.publishedAt)}
-                                {n.sourceUrl && (
-                                  <span className="ml-2 text-blue-500">🔗</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {filtered.map((n) => <NewsCard key={n.id} n={n} />)}
                     </div>
                   )}
                 </div>

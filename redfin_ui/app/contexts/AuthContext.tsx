@@ -1,20 +1,21 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 
 interface User {
   id: number;
-  memberId: number; // MEMBER_ID 필수 필드로 변경
+  memberId: number;
   email: string;
   name: string;
   username?: string;
   phone?: string;
-  zipcode?: string; // zipCode에서 zipcode로 변경
+  zipcode?: string;
   address?: string;
   detailAddress?: string;
   bio?: string;
   createdAt?: string;
   updatedAt?: string;
+  interests?: string[]; // 사용자 관심사 필드 추가
 }
 
 interface AuthContextType {
@@ -25,7 +26,7 @@ interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   updateUser: (user: User) => void;
-  refreshUserFromMember: () => Promise<void>; // MEMBER 테이블에서 사용자 정보 새로고침
+  refreshUserFromMember: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,17 +43,55 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+
+// 사용자 관심사 정보 조회 함수
+const fetchUserInterests = async (memberId: number | string, token: string): Promise<string[]> => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+  const endpoints = [
+    `${API_BASE_URL}/api/job-interest?memberId=${memberId}`,
+    `${API_BASE_URL}/api/ai-company?memberId=${memberId}`,
+    `${API_BASE_URL}/api/ai-field?memberId=${memberId}`
+  ];
+
+  try {
+    const responses = await Promise.all(endpoints.map(url => fetch(url, { headers })));
+    const interests: string[] = [];
+
+    // job-interest
+    if (responses[0].ok) {
+      const data = await responses[0].json();
+      if (data.interest) interests.push(data.interest);
+    }
+    // ai-company
+    if (responses[1].ok) {
+      const data = await responses[1].json();
+      if (data.aiCompany) interests.push(data.aiCompany);
+    }
+    // ai-field
+    if (responses[2].ok) {
+      const data = await responses[2].json();
+      if (data.aiField) interests.push(data.aiField);
+    }
+    
+    console.log('Fetched user interests:', interests);
+    return interests.filter(Boolean); // null, undefined 등 제거
+  } catch (error) {
+    console.error('Failed to fetch user interests:', error);
+    return [];
+  }
+};
+
+
 // MEMBER 테이블에서 사용자 정보 조회 함수
 const fetchUserFromMember = async (token: string): Promise<User | null> => {
   try {
-    console.log('MEMBER 테이블에서 사용자 정보 조회 시작');
-
     const response = await fetch('/api/users/member', {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
+      headers: { 'Authorization': `Bearer ${token}` },
     });
 
     if (!response.ok) {
@@ -61,12 +100,11 @@ const fetchUserFromMember = async (token: string): Promise<User | null> => {
     }
 
     const data = await response.json();
-    console.log('MEMBER 테이블에서 사용자 정보 조회 성공:', data);
-
     if (data.success && data.user) {
-      return data.user;
+      // 관심사 정보 추가 조회
+      const interests = await fetchUserInterests(data.user.memberId, token);
+      return { ...data.user, interests };
     }
-
     return null;
   } catch (error) {
     console.error('MEMBER 테이블 조회 중 오류:', error);
@@ -80,23 +118,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
 
-  // 클라이언트 사이드에서만 실행되도록 보장
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // MEMBER 테이블에서 사용자 정보 새로고침
-  const refreshUserFromMember = async () => {
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    if (isClient) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+    }
+  }, [isClient]);
+
+  const refreshUserFromMember = useCallback(async () => {
     if (!token) {
       console.log('토큰이 없어서 MEMBER 테이블 조회를 건너뜁니다.');
       return;
     }
-
-    console.log('MEMBER 테이블에서 사용자 정보 새로고침 시작');
     const freshUser = await fetchUserFromMember(token);
-
     if (freshUser) {
-      console.log('MEMBER 테이블에서 최신 사용자 정보 업데이트:', freshUser);
       setUser(freshUser);
       if (isClient) {
         localStorage.setItem('auth_user', JSON.stringify(freshUser));
@@ -104,37 +145,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } else {
       console.warn('MEMBER 테이블에서 사용자 정보를 가져올 수 없습니다.');
     }
-  };
+  }, [token, isClient]);
 
-  // 초기 로드 시 저장된 토큰과 사용자 정보 복원 및 MEMBER 테이블에서 최신 정보 조회
   useEffect(() => {
     if (!isClient) return;
 
     const initializeAuth = async () => {
       try {
         const savedToken = localStorage.getItem('auth_token');
-        const savedUser = localStorage.getItem('auth_user');
-
         if (savedToken) {
           setToken(savedToken);
-
-          // 저장된 사용자 정보가 있으면 임시로 설정
-          if (savedUser) {
-            const userData = JSON.parse(savedUser);
-            setUser(userData);
-          }
-
-          // MEMBER 테이블에서 최신 사용자 정보 조회
-          console.log('MEMBER 테이블에서 최신 사용자 정보 조회 시도');
           const freshUser = await fetchUserFromMember(savedToken);
-
           if (freshUser) {
-            console.log('MEMBER 테이블에서 최신 사용자 정보 로드 성공');
             setUser(freshUser);
             localStorage.setItem('auth_user', JSON.stringify(freshUser));
-          } else if (!savedUser) {
-            // 저장된 사용자 정보도 없고 MEMBER 테이블 조회도 실패한 경우
-            console.warn('사용자 정보를 로드할 수 없어 로그아웃 처리');
+          } else {
             logout();
           }
         }
@@ -147,42 +172,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
-  }, [isClient]);
+  }, [isClient, logout]);
 
   const login = async (newToken: string, newUser: User) => {
-    console.log('로그인 처리 시작, MEMBER 테이블에서 최신 정보 조회');
-
     setToken(newToken);
-
-    // 임시로 로그인 시 받은 사용자 정보 설정
+    // 먼저 기본 유저 정보로 UI 업데이트
     setUser(newUser);
-
     if (isClient) {
       localStorage.setItem('auth_token', newToken);
       localStorage.setItem('auth_user', JSON.stringify(newUser));
     }
-
-    // MEMBER 테이블에서 최신 사용자 정보 조회하여 업데이트
-    try {
-      const freshUser = await fetchUserFromMember(newToken);
-      if (freshUser) {
-        console.log('로그인 후 MEMBER 테이블에서 최신 정보 업데이트 완료');
-        setUser(freshUser);
-        if (isClient) {
-          localStorage.setItem('auth_user', JSON.stringify(freshUser));
-        }
+    // 이후 전체 정보(관심사 포함)를 비동기로 가져와 업데이트
+    const freshUser = await fetchUserFromMember(newToken);
+    if (freshUser) {
+      setUser(freshUser);
+      if (isClient) {
+        localStorage.setItem('auth_user', JSON.stringify(freshUser));
       }
-    } catch (error) {
-      console.warn('로그인 후 MEMBER 테이블 조회 실패, 기본 사용자 정보 유지:', error);
-    }
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    if (isClient) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
     }
   };
 
@@ -196,7 +202,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     token,
-    isAuthenticated: !!(user && token), // 사용자 정보와 토큰 모두 있어야 인증된 상태
+    isAuthenticated: !!(user && token),
     isLoading,
     login,
     logout,

@@ -11,13 +11,55 @@ interface RSSItem {
   imageUrl?: string;
 }
 
+// 미국과 영국 주요 언론사의 AI/Technology RSS 피드
 const DEFAULT_RSS_FEEDS = [
-  "http://rss.cnn.com/rss/edition.rss",
-  "https://feeds.bbci.co.uk/news/rss.xml",
-  "https://rss.donga.com/total.xml",
-  "http://rss.chosun.com/rss/news.xml", // https -> http
-  "https://rss.hankyung.com/news.xml"
+  // 미국 언론사
+  "https://feeds.a.dj.com/rss/RSSWSJD.xml", // Wall Street Journal - Technology
+  "https://www.wired.com/feed/", // Wired - AI/Tech 전문
+  "https://techcrunch.com/feed/", // TechCrunch
+  "https://rss.cnn.com/rss/edition_technology.rss", // CNN Technology
+  "https://feeds.npr.org/1019/rss.xml", // NPR Technology
+  "https://www.theverge.com/rss/index.xml", // The Verge
+  "https://www.technologyreview.com/feed/", // MIT Technology Review
+
+  // 영국 언론사
+  "https://feeds.bbci.co.uk/news/technology/rss.xml", // BBC Technology
+  "https://www.theguardian.com/technology/artificialintelligenceai/rss", // Guardian AI
+  "https://www.theguardian.com/technology/rss", // Guardian Technology
+  "https://www.reuters.com/arc/outboundfeeds/rss/category/tech/?outputType=xml", // Reuters Technology
+  "https://www.ft.com/technology?format=rss", // Financial Times Technology
 ];
+
+// AI 관련 키워드 리스트
+const AI_KEYWORDS = [
+  'ai', 'artificial intelligence', 'machine learning', 'deep learning',
+  'chatgpt', 'gpt', 'openai', 'neural network', 'llm', 'large language model',
+  'generative ai', 'automation', 'robotics', 'computer vision',
+  'natural language processing', 'nlp', 'algorithm', 'data science'
+];
+
+// AI 뉴스 필터링 함수
+function isAIRelatedNews(item: RSSItem): boolean {
+  const searchText = `${item.title} ${item.description} ${item.category}`.toLowerCase();
+  return AI_KEYWORDS.some(keyword => searchText.includes(keyword));
+}
+
+// 미국/영국 언론사 판별 함수
+function isUSUKNews(link: string): boolean {
+  try {
+    const url = new URL(link);
+    const usukDomains = [
+      // 미국
+      'wsj.com', 'wired.com', 'techcrunch.com', 'cnn.com', 'npr.org',
+      'theverge.com', 'technologyreview.com', 'nytimes.com', 'washingtonpost.com',
+      // 영국
+      'bbc.co.uk', 'theguardian.com', 'reuters.com', 'ft.com', 'independent.co.uk'
+    ];
+    return usukDomains.some(domain => url.hostname.includes(domain));
+  } catch {
+    return false;
+  }
+}
 
 function extractImageUrl(item: any): string | null {
   // RSS 2.0 이미지 처리
@@ -104,7 +146,13 @@ export async function GET(request: NextRequest) {
           imageUrl: (() => { const img = extractImageUrl(item); return img ?? undefined; })()
         }));
 
-        allItems.push(...normalizedItems);
+        // AI 관련 뉴스만 필터링
+        const aiFilteredItems = normalizedItems.filter(isAIRelatedNews);
+
+        // 미국/영국 언론사 뉴스만 필터링
+        const usukFilteredItems = aiFilteredItems.filter(item => isUSUKNews(item.link));
+
+        allItems.push(...usukFilteredItems);
       } catch (feedError) {
         console.warn(`Error processing feed ${url}:`, feedError);
       }

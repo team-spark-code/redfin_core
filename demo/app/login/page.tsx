@@ -3,6 +3,7 @@
 import { login } from "@/lib/actions/user";
 import { useFormState, useFormStatus } from "react-dom";
 import Link from "next/link";
+import { useEffect } from "react";
 
 // 폼 제출 버튼 컴포넌트 (로딩 상태 표시)
 function SubmitButton() {
@@ -21,6 +22,30 @@ function SubmitButton() {
 export default function LoginPage() {
   // useFormState를 사용하여 서버 액션의 상태를 관리
   const [state, formAction] = useFormState(login, { error: undefined });
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    if (code) {
+      fetch("/api/auth/kakao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      })
+        .then((res) => res.json())
+        .then((result) => {
+          if (result.success && result.token && result.user) {
+            // 로그인 성공 시 원하는 처리 (예: 세션 저장, 리다이렉트 등)
+            window.location.href = "/";
+          } else {
+            alert(result?.message || "카카오 로그인에 실패했습니다.");
+          }
+        })
+        .catch(() => {
+          alert("카카오 로그인 중 오류가 발생했습니다.");
+        });
+    }
+  }, []);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gray-50">
@@ -73,6 +98,20 @@ export default function LoginPage() {
 
           <SubmitButton />
         </form>
+
+        {/* 카카오 로그인 버튼 */}
+        <button
+          type="button"
+          className="w-full px-6 py-3 mt-2 text-black bg-[#FEE500] rounded-md hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+          onClick={() => {
+            const kakaoClientId = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID;
+            const kakaoRedirectUri = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI;
+            const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?response_type=code&client_id=${kakaoClientId}&redirect_uri=${encodeURIComponent(kakaoRedirectUri)}`;
+            window.location.href = kakaoAuthUrl;
+          }}
+        >
+          카카오로 로그인
+        </button>
 
         <div className="text-center">
           <p className="text-sm text-gray-600">
