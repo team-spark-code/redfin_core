@@ -6,19 +6,23 @@ RedFin 프로젝트의 핵심 컴포넌트 및 데모 애플리케이션을 포�
 
 ```
 redfin_core/
-├── demo/                    # Spring Boot + Next.js 하이브리드 데모 프로젝트
-│   ├── src/                 # Spring Boot 백엔드 (Java)
+├── backend/                 # Spring Boot 백엔드 (Java)
+│   ├── src/                 # Java 소스 코드
 │   │   └── main/java/       # 회원 관리, 검색, RSS 처리 등
-│   ├── app/                 # Next.js 프론트엔드 (TypeScript)
-│   └── README.md            # 데모 프로젝트 상세 문서
+│   ├── build.gradle         # Gradle 빌드 설정
+│   └── gradlew              # Gradle wrapper
+├── frontend/                # Next.js 프론트엔드 (TypeScript)
+│   ├── app/                 # Next.js App Router
+│   ├── lib/                 # 공통 라이브러리
+│   └── package.json         # Node.js 의존성
 ├── docs/                    # 문서 디렉토리
 └── README.md                # 본 문서
 ```
 
 ## 🎯 주요 하위 프로젝트
 
-### demo/
-Spring Boot와 Next.js를 결합한 하이브리드 데모 애플리케이션입니다.
+### backend/
+Spring Boot 기반 백엔드 애플리케이션입니다.
 
 **주요 기능:**
 - 회원 가입, 로그인, 프로필 관리
@@ -28,15 +32,24 @@ Spring Boot와 Next.js를 결합한 하이브리드 데모 애플리케이션입
 - OAuth 2.0 소셜 로그인 (Google, Kakao)
 
 **기술 스택:**
-- **백엔드**: Spring Boot, Spring Data JPA, Spring Data Elasticsearch, Spring Security
-- **프론트엔드**: Next.js 14, TypeScript, Tailwind CSS
-- **데이터베이스**: MySQL/MariaDB, Elasticsearch, MongoDB
+- Spring Boot 3.2.0, Spring Data JPA, Spring Data Elasticsearch
+- Spring Security, Thymeleaf
+- Java 17, Gradle
 
-자세한 내용은 [`demo/README.md`](./demo/README.md)를 참조하세요.
+### frontend/
+Next.js 기반 프론트엔드 애플리케이션입니다.
+
+**기술 스택:**
+- Next.js 14, TypeScript, Tailwind CSS
+- NextAuth.js, Drizzle ORM
+- React 18
+
+**데이터베이스:**
+- MySQL/MariaDB, Elasticsearch, MongoDB
 
 ## 🚀 시작하기
 
-### demo 프로젝트 실행
+### 프로젝트 실행
 
 1. **Elasticsearch 실행**
    ```bash
@@ -47,13 +60,13 @@ Spring Boot와 Next.js를 결합한 하이브리드 데모 애플리케이션입
 
 2. **Spring Boot 백엔드 실행**
    ```bash
-   cd demo
+   cd backend
    ./gradlew bootRun
    ```
 
 3. **Next.js 프론트엔드 실행** (별도 터미널)
    ```bash
-   cd demo
+   cd frontend
    pnpm install
    pnpm dev
    ```
@@ -62,7 +75,6 @@ Spring Boot와 Next.js를 결합한 하이브리드 데모 애플리케이션입
 
 - **UI 프로젝트**: 프로젝트 루트의 [`/redfin_ui`](../redfin_ui/README.md) 참조
 - **토스페이먼츠 연동**: [`docs/llms_tosspayments.md`](./docs/llms_tosspayments.md)
-- **데모 프로젝트**: [`demo/README.md`](./demo/README.md)
 
 ## 🔗 관련 프로젝트
 
