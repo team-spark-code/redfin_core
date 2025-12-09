@@ -1,7 +1,0 @@
-### Node.js dependencies ###
-# Ensure demo's node_modules and debug logs are never committed
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
