@@ -11,8 +11,7 @@ redfin_core/
 │   │   └── main/java/       # 회원 관리, 검색, RSS 처리 등
 │   ├── app/                 # Next.js 프론트엔드 (TypeScript)
 │   └── README.md            # 데모 프로젝트 상세 문서
-├── redfin_ui/               # [중복] UI 프로젝트는 프로젝트 루트의 /redfin_ui 참조
-├── llms_tosspayments.md     # 토스페이먼츠 연동 문서
+├── docs/                    # 문서 디렉토리
 └── README.md                # 본 문서
 ```
 
@@ -62,16 +61,16 @@ Spring Boot와 Next.js를 결합한 하이브리드 데모 애플리케이션입
 ## 📝 참고 문서
 
 - **UI 프로젝트**: 프로젝트 루트의 [`/redfin_ui`](../redfin_ui/README.md) 참조
-- **토스페이먼츠 연동**: [`llms_tosspayments.md`](./llms_tosspayments.md)
+- **토스페이먼츠 연동**: [`docs/llms_tosspayments.md`](./docs/llms_tosspayments.md)
 - **데모 프로젝트**: [`demo/README.md`](./demo/README.md)
 
 ## 🔗 관련 프로젝트
 
-- **redfin_ui**: 메인 UI 프로젝트 (프로젝트 루트)
-- **redfin_api**: FastAPI 기반 백엔드 API
-- **redfin_airflow**: Airflow 기반 데이터 파이프라인
-- **redfin_rag**: RAG (Retrieval-Augmented Generation) 시스템
-- **redfin_infra**: 인프라 설정 및 배포 스크립트
+- **redfin_ui**: 메인 UI 프로젝트 - [로컬 경로](../redfin_ui) | [GitHub](https://github.com/{username}/redfin/tree/main/redfin_ui)
+- **redfin_api**: FastAPI 기반 백엔드 API - [로컬 경로](../redfin_api) | [GitHub](https://github.com/{username}/redfin/tree/main/redfin_api)
+- **redfin_airflow**: Airflow 기반 데이터 파이프라인 - [로컬 경로](../redfin_airflow) | [GitHub](https://github.com/{username}/redfin/tree/main/redfin_airflow)
+- **redfin_rag**: RAG (Retrieval-Augmented Generation) 시스템 - [로컬 경로](../redfin_rag) | [GitHub](https://github.com/{username}/redfin/tree/main/redfin_rag)
+- **redfin_infra**: 인프라 설정 및 배포 스크립트 - [로컬 경로](../redfin_infra) | [GitHub](https://github.com/{username}/redfin/tree/main/redfin_infra)
 
 ## 📄 라이선스
 
